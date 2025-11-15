@@ -1,43 +1,58 @@
-import pandas as pd
+import streamlit as st
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
 import pickle
+import os
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
 
-# Generate synthetic data
-np.random.seed(42)
-size = 600
+st.title("Mental Health Stress Level Predictor (Bhutan)")
 
-data = pd.DataFrame({
-    'age': np.random.randint(15, 60, size),
-    'sleep_hours': np.random.uniform(4, 10, size),
-    'social_interaction': np.random.randint(0, 7, size),
-    'work_stress': np.random.randint(1, 10, size),
-    'physical_activity': np.random.randint(0, 6, size),
-    'mood_score': np.random.randint(1, 10, size)
-})
+MODEL_PATH = "mental_health_model.pkl"
 
-# Create stress level label
-score = (data['work_stress'] * 0.5) + (10 - data['mood_score']) + (6 - data['physical_activity'])
-conditions = [score < 8, score < 14, score >= 14]
-choices = ['low', 'medium', 'high']
-data['stress_level'] = np.select(conditions, choices)
+# If model not found, train a fresh one
+if not os.path.exists(MODEL_PATH):
+    st.warning("Model not found. Training a new model...")
 
-# Save synthetic dataset
-data.to_csv("data/synthetic_data.csv", index=False)
+    import numpy as np
+    np.random.seed(42)
+    size = 600
 
-# Train-test split
-X = data.drop('stress_level', axis=1)
-y = data['stress_level']
+    data = pd.DataFrame({
+        'age': np.random.randint(15, 60, size),
+        'sleep_hours': np.random.uniform(4, 10, size),
+        'social_interaction': np.random.randint(0, 7, size),
+        'work_stress': np.random.randint(1, 10, size),
+        'physical_activity': np.random.randint(0, 6, size),
+        'mood_score': np.random.randint(1, 10, size)
+    })
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    score = (data['work_stress'] * 0.5) + (10 - data['mood_score']) + (6 - data['physical_activity'])
+    conditions = [score < 8, score < 14, score >= 14]
+    choices = ['low', 'medium', 'high']
+    data['stress_level'] = np.select(conditions, choices)
 
-# Model
-model = RandomForestClassifier()
-model.fit(X_train, y_train)
+    X = data.drop('stress_level', axis=1)
+    y = data['stress_level']
 
-# Save trained model
-with open("mental_health_model.pkl", "wb") as f:
-    pickle.dump(model, f)
+    model = RandomForestClassifier()
+    model.fit(X, y)
 
-print("Model training complete. Model saved as mental_health_model.pkl")
+    with open(MODEL_PATH, "wb") as f:
+        pickle.dump(model, f)
+
+    st.success("Model trained successfully.")
+
+else:
+    model = pickle.load(open(MODEL_PATH, "rb"))
+
+age = st.slider('Age', 15, 60, 25)
+sleep_hours = st.slider('Sleep Hours per Night', 4.0, 10.0, 7.0)
+social_interaction = st.slider('Days per Week with Social Interaction', 0, 7, 3)
+work_stress = st.slider('Work/Study Stress Level (1-10)', 1, 10, 5)
+physical_activity = st.slider('Physical Activity Days per Week', 0, 6, 2)
+mood_score = st.slider('Mood Score (1=low, 10=high)', 1, 10, 6)
+
+if st.button("Predict Stress Level"):
+    features = np.array([[age, sleep_hours, social_interaction, work_stress, physical_activity, mood_score]])
+    prediction = model.predict(features)[0]
+    st.write("Predicted Stress Level:", prediction)
